@@ -6,7 +6,6 @@ sqlalchemy
 sqlmodel
 psycopg2-binary
 supabase
-google-generativeai
 google-ads
 sentence-transformers
 python-multipart
@@ -20,3 +19,5 @@ langchain-google-genai
 pypdf
 python-docx
 python-dotenv
+crewai
+google-generativeai
