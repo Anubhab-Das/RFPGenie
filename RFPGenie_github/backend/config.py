@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str
     VITE_TINYMCE_API_KEY: str
     FINAL_GENERATION_MODEL: str = "gpt-4-turbo"
-    RAG_MATCH_THRESHOLD: float = 0.3
+    RAG_MATCH_THRESHOLD: float = 0.7
 
     class Config:
         pass
