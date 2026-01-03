@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from backend.database import get_session
-from backend.models import Proposal, ProposalSection
+from backend.models import Proposal, ProposalSection, Approval
 import shutil
 import logging
 import uuid
@@ -117,44 +117,55 @@ async def read_proposal_sections_with_versions(proposal_id: int, session: AsyncS
         .options(selectinload(ProposalSection.versions))
         .where(ProposalSection.proposal_id == proposal_id)
     )
-    proposal_sections = result.all()
-    # Sort versions by version_number for consistency
-    for section in proposal_sections:
-        section.versions.sort(key=lambda v: v.version_number)
-    return proposal_sections
+    sections = result.all()
+    return sections
 
-@router.put("/{proposal_id}/sections/{section_id}", response_model=ProposalSection)
-async def update_proposal_section(proposal_id: int, section_id: int, section: ProposalSection, db: AsyncSession = Depends(get_session)):
-    logger.info(f"Updating proposal section {section_id} for proposal {proposal_id}.")
-    db_section = await db.get(ProposalSection, section_id)
-    if not db_section:
-        raise HTTPException(status_code=404, detail="Proposal section not found")
-    if db_section.proposal_id != proposal_id:
-        raise HTTPException(status_code=403, detail="Proposal section does not belong to this proposal")
+# --- Approval Endpoints ---
+class ApprovalCreateRequest(BaseModel):
+    proposal_id: int
+    approved_by: str
+    status: str = "pending"
+    comments: str = None
 
-    section_data = section.dict(exclude_unset=True)
-    for key, value in section_data.items():
-        setattr(db_section, key, value)
-    
-    db.add(db_section)
-    await db.commit()
-    await db.refresh(db_section)
-    logger.info(f"Proposal section {section_id} updated successfully.")
-    return db_section
-
-class ProposalContentUpdate(BaseModel):
-    final_rfp_json: str
-
-@router.patch("/{proposal_id}/content", response_model=Proposal)
-async def update_proposal_content(proposal_id: int, proposal_update: ProposalContentUpdate, session: AsyncSession = Depends(get_session)):
-    logger.info(f"Updating proposal content for proposal {proposal_id}.")
-    db_proposal = await session.get(Proposal, proposal_id)
-    if not db_proposal:
+@router.post("/{proposal_id}/approvals", response_model=Approval)
+async def create_approval(proposal_id: int, request: ApprovalCreateRequest, session: AsyncSession = Depends(get_session)):
+    proposal = await session.get(Proposal, proposal_id)
+    if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
-    
-    db_proposal.final_rfp_json = proposal_update.final_rfp_json
-    session.add(db_proposal)
+    approval = Approval(
+        proposal_id=proposal_id,
+        approved_by=request.approved_by,
+        status=request.status,
+        comments=request.comments
+    )
+    session.add(approval)
     await session.commit()
-    await session.refresh(db_proposal)
-    logger.info(f"Proposal content for proposal {proposal_id} updated successfully.")
-    return db_proposal
+    await session.refresh(approval)
+    return approval
+
+@router.get("/{proposal_id}/approvals", response_model=List[Approval])
+async def get_approvals(proposal_id: int, session: AsyncSession = Depends(get_session)):
+    result = await session.exec(select(Approval).where(Approval.proposal_id == proposal_id))
+    return result.all()
+
+@router.put("/approvals/{approval_id}", response_model=Approval)
+async def update_approval(approval_id: int, request: ApprovalCreateRequest, session: AsyncSession = Depends(get_session)):
+    approval = await session.get(Approval, approval_id)
+    if not approval:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    approval.status = request.status
+    approval.comments = request.comments
+    approval.approved_by = request.approved_by
+    session.add(approval)
+    await session.commit()
+    await session.refresh(approval)
+    return approval
+
+@router.delete("/approvals/{approval_id}")
+async def delete_approval(approval_id: int, session: AsyncSession = Depends(get_session)):
+    approval = await session.get(Approval, approval_id)
+    if not approval:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    await session.delete(approval)
+    await session.commit()
+    return {"ok": True}

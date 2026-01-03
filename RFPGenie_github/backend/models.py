@@ -1,4 +1,3 @@
-
 from typing import Optional, List
 from sqlmodel import Field, SQLModel, JSON, Column, Relationship
 from pydantic import computed_field
@@ -53,6 +52,16 @@ class Proposal(SQLModel, table=True):
     def draft_rfp_json(self) -> bool:
         return any(section.versions for section in self.proposal_sections)
 
+# New Approval Model
+class Approval(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    proposal_id: int = Field(foreign_key="proposal.id")
+    approved_by: str
+    approved_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+    status: str = Field(default="pending")  # pending, approved, rejected
+    comments: Optional[str] = None
+    proposal: Proposal = Relationship()
+
 # API Response Models
 
 class SectionVersionResponse(SQLModel):
@@ -68,4 +77,3 @@ class ProposalSectionResponse(SQLModel):
     collection_mappings: List[str]
     custom_prompt: str
     versions: List[SectionVersionResponse] = []
-

@@ -40,3 +40,13 @@ BEGIN
   LIMIT match_count;
 END;
 $$;
+
+-- 3. Create approvals table
+CREATE TABLE IF NOT EXISTS approvals (
+  id SERIAL PRIMARY KEY,
+  proposal_id INTEGER REFERENCES proposal(id) ON DELETE CASCADE,
+  approved_by TEXT NOT NULL,
+  approved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  status TEXT DEFAULT 'pending',
+  comments TEXT
+);
